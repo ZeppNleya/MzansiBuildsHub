@@ -1,0 +1,402 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: MzansiBuilds API specification
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: projects
+    description: Project operations
+  - name: comments
+    description: Comment operations
+  - name: milestones
+    description: Milestone operations
+  - name: stats
+    description: Statistics operations
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /projects:
+    get:
+      operationId: listProjects
+      tags: [projects]
+      summary: List all projects (public feed)
+      parameters:
+        - name: stage
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [Planning, Building, Review, Completed]
+        - name: support
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of projects
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Project"
+    post:
+      operationId: createProject
+      tags: [projects]
+      summary: Create a new project
+      security:
+        - ClerkAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProjectBody"
+      responses:
+        "201":
+          description: Project created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+        "401":
+          description: Unauthorized
+
+  /projects/{id}:
+    get:
+      operationId: getProject
+      tags: [projects]
+      summary: Get a single project by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Project
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectDetail"
+        "404":
+          description: Not found
+
+  /projects/{id}/milestones:
+    post:
+      operationId: addMilestone
+      tags: [milestones]
+      summary: Add a milestone to a project (owner only)
+      security:
+        - ClerkAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateMilestoneBody"
+      responses:
+        "201":
+          description: Milestone added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Milestone"
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+
+  /projects/{id}/comments:
+    post:
+      operationId: addComment
+      tags: [comments]
+      summary: Add a comment to a project
+      security:
+        - ClerkAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCommentBody"
+      responses:
+        "201":
+          description: Comment added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Comment"
+        "401":
+          description: Unauthorized
+
+  /projects/completed:
+    get:
+      operationId: listCompletedProjects
+      tags: [projects]
+      summary: List all completed projects (Celebration Wall)
+      responses:
+        "200":
+          description: Completed projects
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Project"
+
+  /stats/summary:
+    get:
+      operationId: getStatsSummary
+      tags: [stats]
+      summary: Get platform-wide stats summary
+      responses:
+        "200":
+          description: Stats summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatsSummary"
+
+  /stats/stages:
+    get:
+      operationId: getStageBreakdown
+      tags: [stats]
+      summary: Get project count by stage
+      responses:
+        "200":
+          description: Stage breakdown
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StageCount"
+
+  /projects/my:
+    get:
+      operationId: listMyProjects
+      tags: [projects]
+      summary: List projects owned by the current user
+      security:
+        - ClerkAuth: []
+      responses:
+        "200":
+          description: My projects
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Project"
+        "401":
+          description: Unauthorized
+
+components:
+  securitySchemes:
+    ClerkAuth:
+      type: http
+      scheme: bearer
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+
+    Project:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        description:
+          type: string
+        stage:
+          type: string
+          enum: [Planning, Building, Review, Completed]
+        supportNeeded:
+          type: string
+        ownerClerkId:
+          type: string
+        ownerName:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        commentCount:
+          type: integer
+        milestoneCount:
+          type: integer
+      required:
+        - id
+        - title
+        - description
+        - stage
+        - supportNeeded
+        - ownerClerkId
+        - ownerName
+        - createdAt
+        - commentCount
+        - milestoneCount
+
+    ProjectDetail:
+      allOf:
+        - $ref: "#/components/schemas/Project"
+        - type: object
+          properties:
+            comments:
+              type: array
+              items:
+                $ref: "#/components/schemas/Comment"
+            milestones:
+              type: array
+              items:
+                $ref: "#/components/schemas/Milestone"
+          required:
+            - comments
+            - milestones
+
+    CreateProjectBody:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        stage:
+          type: string
+          enum: [Planning, Building, Review, Completed]
+        supportNeeded:
+          type: string
+        ownerName:
+          type: string
+      required:
+        - title
+        - description
+        - stage
+        - supportNeeded
+        - ownerName
+
+    Comment:
+      type: object
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        authorClerkId:
+          type: string
+        authorName:
+          type: string
+        content:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - projectId
+        - authorClerkId
+        - authorName
+        - content
+        - createdAt
+
+    CreateCommentBody:
+      type: object
+      properties:
+        content:
+          type: string
+        authorName:
+          type: string
+      required:
+        - content
+        - authorName
+
+    Milestone:
+      type: object
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        description:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - projectId
+        - description
+        - createdAt
+
+    CreateMilestoneBody:
+      type: object
+      properties:
+        description:
+          type: string
+      required:
+        - description
+
+    StatsSummary:
+      type: object
+      properties:
+        totalProjects:
+          type: integer
+        completedProjects:
+          type: integer
+        totalComments:
+          type: integer
+        totalMilestones:
+          type: integer
+      required:
+        - totalProjects
+        - completedProjects
+        - totalComments
+        - totalMilestones
+
+    StageCount:
+      type: object
+      properties:
+        stage:
+          type: string
+        count:
+          type: integer
+      required:
+        - stage
+        - count
